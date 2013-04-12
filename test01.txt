@@ -1,3 +1,0 @@
-<body>
-12345678
-A test that you are putting my file

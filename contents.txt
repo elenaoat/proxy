@@ -1,8 +1,0 @@
-PUT /testing.txt HTTP/1.1
-Host: nwprog1.netlab.hut.fi
-Content-Type:	text/plain
-Content-Length: 23
-Iam: oate1
-
-fdgbkngjkgn
-dhgknfgbkn
