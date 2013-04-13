@@ -54,7 +54,15 @@ int main(int argc, char **argv){
 	uheader.aa = 0;
 	uheader.tc = 0;
 	uheader.rd = 1;
-	uheader.
+	uheader.ra = 0;
+	uheader.z = 0;
+	uheader.ad = 0;
+	uheader.cd = 0;
+	uheader.rcode = 0;
+	uheader.qcount = htons(1);
+	uheader.acount = 0;
+	uheader.nscount = 0;
+	uheader.arcount = 0;
 	/*create a UDP socket*/
 	sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if(sockfd < 0){
