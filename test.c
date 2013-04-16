@@ -9,8 +9,9 @@
 #include <stdlib.h>
 #include <netdb.h>
 uint8_t *processName(uint8_t *bstart, uint8_t *bcur, char *name);
+void dns_format(char* dns, char* host);
 
-	struct UDP_header{
+struct UDP_header{
 		unsigned int id : 16;
 		
 		unsigned int qr : 1; /*query or response*/
@@ -31,22 +32,27 @@ uint8_t *processName(uint8_t *bstart, uint8_t *bcur, char *name);
 	};
 
 	struct DNS_query{
-	    char *name;
-		unsigned short type;
-		unsigned short class;
+	   unsigned int type;
+	   unsigned int class;
 	};
+
+typedef struct{
+	char *name;
+	struct DNS_query *q; 		
+}QUERY;
 
 int main(int argc, char **argv){
 
-	char *hostname;
-	uint8_t *buff, *q;
+	char buff[65536], *q;
+	char *left;
 	int bytes;
 	int sockfd;
 	struct UDP_header *uheader;
+	
 	struct sockaddr_in dest_address; 
 	char ip_text[INET_ADDRSTRLEN];
-	hostname = argv[1];	
 	/*printf("entered hostname: %s\n", argv[1]);*/
+	
 	uheader = (struct UDP_header *) buff;
 
 	uheader->id = getpid();
@@ -78,14 +84,14 @@ int main(int argc, char **argv){
 /*	printf("sin_port: %u\n", dest_address->sin_port);	*/
 	inet_ntop(AF_INET, &(dest_address.sin_addr), ip_text, INET_ADDRSTRLEN);	
 	/*!!!*/
-	q = &buff[sizeof(struct UDP_header) + 1];
-/*	q = (struct DNS_queryi *) &buff[sizeof(struct UDP_header) + 1];*/
+	q =  &buff[sizeof(struct UDP_header)];
 
-/*	strcpy(q, hostname, strlen(hostname) + 1);*/
-/*	strncpy(buff, "something", 10);*/
-	processName(buff, q, argv[1]);
-/*	printf("copied stuff: %s\n", q->name);*/
-/*	printf("ip_address: %s\n", ip_text);*/
+	/*processName(buff, q, argv[1]);*/
+	dns_format(q, argv[1]);
+	left = (struct DNS_query *) &buff[sizeof(struct UDP_header) + strlen(q) + 1];
+	left->type = 1;
+	left->class = 1;
+	printf("%s\n", q);
 /*	bytes = sendto(sockfd, &buff, sizeof(struct UDP_header) + sizeof(struct DNS_query), 0, (struct sockaddr *) &dest_address, sizeof(struct sockaddr_in));*/
 	
 	/*processName(&uheader, hostname);*/
@@ -149,3 +155,24 @@ uint8_t *processName(uint8_t *bstart, uint8_t *bcur, char *name)
 				    compressed) */
 	return bcur;
 }
+void dns_format(char* dns, char* host)
+{
+    int lock=0 , i;
+ 
+    strcat((char*)host,".");
+ 
+    for(i=0 ; i<(int)strlen((char*)host) ; i++)
+    {
+        if(host[i]=='.')
+        {
+            *dns++=i-lock;
+            for(;lock<i;lock++)
+            {
+                *dns++=host[lock];
+            }
+            lock++; /*or lock=i+1;*/
+        }
+    }
+    *dns++='\0';
+}
+
