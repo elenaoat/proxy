@@ -43,8 +43,8 @@ typedef struct{
 
 int main(int argc, char **argv){
 
-	char buff[65536], *q;
-	char *left;
+	char buff[65536], *name;
+	struct DNS_query *question;
 	int bytes;
 	int sockfd;
 	struct UDP_header *uheader;
@@ -84,14 +84,14 @@ int main(int argc, char **argv){
 /*	printf("sin_port: %u\n", dest_address->sin_port);	*/
 	inet_ntop(AF_INET, &(dest_address.sin_addr), ip_text, INET_ADDRSTRLEN);	
 	/*!!!*/
-	q =  &buff[sizeof(struct UDP_header)];
+	name = &buff[sizeof(struct UDP_header)];
 
 	/*processName(buff, q, argv[1]);*/
-	dns_format(q, argv[1]);
-	left = (struct DNS_query *) &buff[sizeof(struct UDP_header) + strlen(q) + 1];
-	left->type = 1;
-	left->class = 1;
-	printf("%s\n", q);
+	dns_format(name, argv[1]);
+	question = (struct DNS_query *) &buff[sizeof(struct UDP_header) + strlen(name) + 1];
+	question->type = 1;
+	question->class = 1;
+	printf("%s\n", name);
 /*	bytes = sendto(sockfd, &buff, sizeof(struct UDP_header) + sizeof(struct DNS_query), 0, (struct sockaddr *) &dest_address, sizeof(struct sockaddr_in));*/
 	
 	/*processName(&uheader, hostname);*/
