@@ -39,17 +39,15 @@ uint8_t *processName(uint8_t *bstart, uint8_t *bcur, char *name);
 int main(int argc, char **argv){
 
 	char *hostname;
-	char buff[10000];
+	uint8_t *buff, *q;
 	int bytes;
 	int sockfd;
-	struct DNS_query *q;
-	char address[128];
 	struct UDP_header *uheader;
-	struct sockaddr_in *dest_address; 
+	struct sockaddr_in dest_address; 
 	char ip_text[INET_ADDRSTRLEN];
 	hostname = argv[1];	
-	printf("entered hostname: %s\n", argv[1]);
-	uheader = (struct UDP_header *) &buff;
+	/*printf("entered hostname: %s\n", argv[1]);*/
+	uheader = (struct UDP_header *) buff;
 
 	uheader->id = getpid();
 	uheader->qr = 0;
@@ -71,20 +69,24 @@ int main(int argc, char **argv){
 	if(sockfd < 0){
 		perror("error creating socket\n");
 	}
-	bzero(dest_address, sizeof(dest_address));
-	dest_address = (struct sockaddr_in *) &address;
-	dest_address->sin_family = AF_INET;
-	dest_address->sin_port = htons(53);
-	dest_address->sin_addr.s_addr = inet_addr("8.8.8.8");
+/*	dest_address = (struct sockaddr_in *) &address;*/
+	bzero(&dest_address, sizeof(dest_address));
+	dest_address.sin_family = AF_INET;
+	dest_address.sin_port = htons(53);
+	dest_address.sin_addr.s_addr = inet_addr("8.8.8.8");
 
 /*	printf("sin_port: %u\n", dest_address->sin_port);	*/
-	inet_ntop(AF_INET, &(dest_address->sin_addr), ip_text, INET_ADDRSTRLEN);	
+	inet_ntop(AF_INET, &(dest_address.sin_addr), ip_text, INET_ADDRSTRLEN);	
+	/*!!!*/
+	q = &buff[sizeof(struct UDP_header) + 1];
+/*	q = (struct DNS_queryi *) &buff[sizeof(struct UDP_header) + 1];*/
 
-	q = (struct DNS_query *) &buff[sizeof(struct UDP_header) + 1];
-	memcpy(q, hostname, strlen(hostname) + 1);
-	printf("copied stuff: %s\n", q->name);
+/*	strcpy(q, hostname, strlen(hostname) + 1);*/
+/*	strncpy(buff, "something", 10);*/
+	processName(buff, q, argv[1]);
+/*	printf("copied stuff: %s\n", q->name);*/
 /*	printf("ip_address: %s\n", ip_text);*/
-	bytes = sendto(sockfd, &buff, sizeof(struct UDP_header) + sizeof(struct DNS_query), 0, (struct sockaddr *) dest_address, sizeof(struct sockaddr_in));
+/*	bytes = sendto(sockfd, &buff, sizeof(struct UDP_header) + sizeof(struct DNS_query), 0, (struct sockaddr *) &dest_address, sizeof(struct sockaddr_in));*/
 	
 	/*processName(&uheader, hostname);*/
 	return 0;
