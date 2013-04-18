@@ -41,11 +41,25 @@ typedef struct{
 	struct DNS_query *q; 		
 }QUERY;
 
+
+struct response_fields{
+	unsigned int type;
+	unsigned int class;
+	unsigned int ttl;
+	unsigned int dl;
+};
+
+struct response{
+	char *name;
+	struct response_fields *rf;
+	char *res_data;
+};
+
 int main(int argc, char **argv){
 
-	char buff[65536], *name;
+	char buff[65536], *name, buff_rec[65536];
 	struct DNS_query *question;
-	int bytes;
+	int bytes, bytes_rec;
 	int sockfd;
 	struct UDP_header *uheader;
 	
@@ -60,7 +74,7 @@ int main(int argc, char **argv){
 	uheader->Opcode = 0;
 	uheader->aa = 0;
 	uheader->tc = 0;
-	uheader->rd = 1;
+	uheader->rd = 1; /*query is recursive*/
 	uheader->ra = 0;
 	uheader->z = 0;
 	uheader->ad = 0;
@@ -89,12 +103,26 @@ int main(int argc, char **argv){
 	/*processName(buff, q, argv[1]);*/
 	dns_format(name, argv[1]);
 	question = (struct DNS_query *) &buff[sizeof(struct UDP_header) + strlen(name) + 1];
-	question->type = 1;
-	question->class = 1;
-	printf("%s\n", name);
-/*	bytes = sendto(sockfd, &buff, sizeof(struct UDP_header) + sizeof(struct DNS_query), 0, (struct sockaddr *) &dest_address, sizeof(struct sockaddr_in));*/
-	
+	/*query type*/
+	question->type = htons(1);
+	question->class = htons(1);
+/*	printf("%s\n", name);*/
+/*	printf("%d\n", question->type);*/
+
+	bytes = sendto(sockfd, &buff, sizeof(struct UDP_header) + sizeof(struct DNS_query) + strlen(name) + 1, 0, (struct sockaddr *) &dest_address, sizeof(struct sockaddr_in));
+		printf("bytes sent: %d\n", bytes);	
 	/*processName(&uheader, hostname);*/
+
+	if (bytes < -1){
+		perror("sendto error\n");
+		return -1;
+	}
+	
+	bytes_rec = recvfrom(sockfd, &buff_rec, 65536, NULL, 0);
+	printf("bytes in response: %d\n", bytes_rec);
+	
+	
+	
 	return 0;
 }
 

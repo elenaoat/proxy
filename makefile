@@ -6,3 +6,7 @@ client: webclient.c
 
 upload: uploadclient.c
 	gcc -o u -Wall -pedantic uploadclient.c
+
+
+test: test1.c 
+	gcc -o t -Wall test1.c
