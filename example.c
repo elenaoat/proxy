@@ -186,8 +186,9 @@ void ngethostbyname(unsigned char *host , int query_type)
     //Start reading answers
     stop=0;
  
-    for(i=0;i<ntohs(dns->ans_count);i++)
-    {
+	i=0;
+/*    for(i=0;i<ntohs(dns->ans_count);i++)
+    {*/
         answers[i].name=ReadName(reader,buf,&stop);
         reader = reader + stop;
  
@@ -197,13 +198,15 @@ void ngethostbyname(unsigned char *host , int query_type)
         if(ntohs(answers[i].resource->type) == 1) //if its an ipv4 address
         {
             answers[i].rdata = (unsigned char*)malloc(ntohs(answers[i].resource->data_len));
-			printf("rdata length: %d\n", ntohs(answers[i].resource->data_len));
+/*			printf("rdata length: %d\n", ntohs(answers[i].resource->data_len));*/
+/*			printf("rdata TTL: %d\n", ntohs(answers[i].resource->ttl));*/
  
             for(j=0 ; j<ntohs(answers[i].resource->data_len) ; j++)
             {
                 answers[i].rdata[j]=reader[j];
+				printf(" %c ", answers[i].rdata[j]);
             }
- 
+ 			printf("\n");
             answers[i].rdata[ntohs(answers[i].resource->data_len)] = '\0';
  
             reader = reader + ntohs(answers[i].resource->data_len);
@@ -213,7 +216,7 @@ void ngethostbyname(unsigned char *host , int query_type)
             answers[i].rdata = ReadName(reader,buf,&stop);
             reader = reader + stop;
         }
-    }
+//    }
  
     //read authorities
     for(i=0;i<ntohs(dns->auth_count);i++)

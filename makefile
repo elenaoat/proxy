@@ -8,5 +8,5 @@ upload: uploadclient.c
 	gcc -o u -Wall -pedantic uploadclient.c
 
 
-test: test1.c 
-	gcc -o t -g -Wall test1.c
+test: test2.c 
+	gcc -o t -g -Wall test2.c

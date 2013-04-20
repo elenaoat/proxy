@@ -181,24 +181,26 @@ int main(int argc, char **argv){
 
 		/*point to the beginning of resource data*/
 		pointer = pointer + sizeof(struct RESPONSE_fields);
-		j=0;
-		struct sockaddr_in *address = (struct sockaddr_in *) pointer;
+		
 		const char *ret_val;
 		uint8_t addr[ans_num][resource_data_length];
-/*		char a[4];
-		long *p;*/
 		char hraddress[INET_ADDRSTRLEN];
+		struct sockaddr_in a;
+		long *p;
 		bzero(hraddress, INET_ADDRSTRLEN);
 /*		for (i=0; i<resource_data_length; i++){
 			addr[j][i] = pointer[i];
-		}*/
-	/*	p = (long *) addr;
-		address.sin_addr.s_addr = (*p);*/
-		ret_val = inet_ntop(AF_INET, &(address->sin_addr), hraddress, INET_ADDRSTRLEN);
-		if (ret_val <= 0){
-			perror("error in inet_ntop function\n");
 		}
-/*	printf("human readable address: %s\n", address->sin_addr);*/
+
+		p = (long*) addr[j];*/
+		p = (long*) pointer;
+		a.sin_addr.s_addr = (*p);
+		ret_val = inet_ntop(AF_INET, &(a.sin_addr), hraddress, INET_ADDRSTRLEN);
+		if (ret_val <= 0){
+			perror("error converting IP address\n");
+		} else {
+			printf("response address: %s\n", hraddress);
+		}
 	/*pointer = pointer + resource_data_length;*/
 /*	}*/
 
