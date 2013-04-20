@@ -13,7 +13,8 @@ void name_encode(char* name, char* name_encoded);
 
 
 
-struct DNS_header {
+struct UDP_header
+{
     uint16_t id; // identification number
 
  
@@ -36,48 +37,66 @@ struct DNS_header {
 };
 
 
-struct DNS_query {
-	uint16_t type;
-	uint16_t class;
-};
+/*struct UDP_header{
+		unsigned int id : 16;
+		
+		unsigned int qr : 1; *//*query or response*/
+/*		unsigned int Opcode : 4;
+		unsigned int aa : 1; 
+		unsigned int tc : 1; 
+		unsigned int rd : 1;
+		unsigned int ra : 1;
+		unsigned int z : 1;
+		unsigned int ad : 1;
+		unsigned int cd : 1;
+		unsigned int rcode : 4;
+		
+		unsigned int qcount;
+		unsigned int acount;
+		unsigned int nscount;
+		unsigned int arcount;
+	};*/
 
-typedef struct {
+	struct DNS_query{
+	   unsigned short type;
+	   unsigned short class;
+	};
+
+typedef struct{
 	char *name;
 	struct DNS_query *q; 		
-} QUERY;
+}QUERY;
 
 
-struct RESPONSE_fields {
+struct response_fields{
 	uint16_t type;
 	uint16_t class;
 	uint32_t ttl;
 	uint16_t dl;
 };
 
-struct RESPONSE{
+struct response{
 	char *name;
-	struct RESPONSE_fields *rf;
+	struct response_fields *rf;
 	char *res_data;
 };
 
-#define BUF_SIZE 65536
-#define NAME_SIZE 100
 int main(int argc, char **argv){
-	char name_dotted[NAME_SIZE];
-	char buff[BUF_SIZE], *name, buff_rec[BUF_SIZE];
-	uint8_t *pointer;
-	struct RESPONSE_fields *res_fields;
+	char name_dotted[500];
+	char buff[65536], *name, buff_rec[65536], *res_data;
+	uint8_t *reader;
+	struct response_fields *res_fields;
 	struct DNS_query *question;
 	int i, bytes, bytes_rec, resource_data_length;
 	int sockfd;
-	struct DNS_header *uheader;
+	struct UDP_header *uheader;
 	struct sockaddr_in dest_address; 
 	char ip_text[INET_ADDRSTRLEN];
 	/*printf("entered hostname: %s\n", argv[1]);*/
 /*	bzero(buff, 65536);*/
 	
 	
-	uheader = (struct DNS_header *) buff;
+	uheader = (struct UDP_header *) buff;
 
 	uheader->id = getpid();
 	uheader->qr = 0;
@@ -112,10 +131,10 @@ int main(int argc, char **argv){
 /*	printf("sin_port: %u\n", dest_address->sin_port);	*/
 	inet_ntop(AF_INET, &(dest_address.sin_addr), ip_text, INET_ADDRSTRLEN);	
 	/*!!!*/
-	name = &buff[sizeof(struct DNS_header)];
+	name = &buff[sizeof(struct UDP_header)];
 
 	name_encode(argv[1], name);
-	question = (struct DNS_query *) &buff[sizeof(struct DNS_header) + strlen((const char *) name) + 1];
+	question = (struct DNS_query *) &buff[sizeof(struct UDP_header) + strlen((const char *) name) + 1];
 	/*query type*/
 	question->type = htons(1);
 	question->class = htons(1);
@@ -123,33 +142,26 @@ int main(int argc, char **argv){
 /*	printf("%d\n", question->type);*/
 	/*printf("sockfd: %i\n", sockfd);*/
 /*	printf("name: %s\n", name);*/
-	bytes = sendto(sockfd, buff, sizeof(struct DNS_header) + sizeof(struct DNS_query) + strlen((const char *) name) + 1, 0, (struct sockaddr *) &dest_address, sizeof(dest_address));
+	bytes = sendto(sockfd, buff, sizeof(struct UDP_header) + sizeof(struct DNS_query) + strlen((const char *) name) + 1, 0, (struct sockaddr *) &dest_address, sizeof(dest_address));
 	printf("bytes sent: %d\n", bytes);	
+	/*processName(&uheader, hostname);*/
+
 	if (bytes < -1){
 		perror("sendto error\n");
 		return -1;
 	}
-
-	bzero(buff_rec, BUF_SIZE);
-	
-	bytes_rec = recvfrom(sockfd, &buff_rec, BUF_SIZE, 0, NULL, 0);
+	bzero(buff_rec, 65536);
+	bytes_rec = recvfrom(sockfd, &buff_rec, 65536, 0, NULL, 0);
 	if (bytes_rec < 0){
 		perror("receive error\n");
 	}
-	printf("bytes sent back: %d\n", bytes_rec);
-	uint16_t type, class, que_num, ans_num;
-	uint32_t TTL;
+	printf("bytes in response: %d\n", bytes_rec);
 
-	uheader = (struct DNS_header *) buff_rec;
-	que_num = ntohs(uheader->q_count);
-	ans_num = ntohs(uheader->ans_count);
-	printf("response question number: %d\nresponse answer number: %d\n", que_num, ans_num);
+	uheader = (struct UDP_header *) buff_rec;
+	reader = (unsigned char *) &buff_rec[(sizeof(struct UDP_header) + strlen((const char *) name) + 1 + sizeof(struct DNS_query))];
 
-	/*point to part after DNS header*/
-	pointer = (unsigned char *) &buff_rec[(sizeof(struct DNS_header) + strlen((const char *) name) + 1 + sizeof(struct DNS_query))];
-
-/*	printf("The number of questions: %d\n", ntohs(uheader->q_count));
-	printf("The number of answers: %d\n", ntohs(uheader->ans_count));	*/
+	printf("The number of questions: %d\n", ntohs(uheader->q_count));
+	printf("The number of answers: %d\n", ntohs(uheader->ans_count));	
 
 /*	printf("sizeof(unsigned int) = %lu sizeof(unsigned short) = %lu\n", sizeof(unsigned int), sizeof(unsigned short));	
 	
@@ -157,44 +169,31 @@ int main(int argc, char **argv){
 */
 
 /*	printf("sizeof(uint8_t)=%lu, sizeof(char)=%lu\n", sizeof(uint8_t), sizeof(char));*/
-
-	int j=0;
-
-	/*processing answers section*/
-/*	for (j=0; j<ans_num; j++){	*/
-		bzero(name_dotted, NAME_SIZE);
-		pointer = processName ((unsigned char*) buff_rec, pointer, name_dotted);
-
-		/*point to response fields structure: type, class, TTL, data length */
-		res_fields = (struct RESPONSE_fields *) pointer;
-
-		type = ntohs(res_fields->type);
-		class = ntohs(res_fields->class);
-		TTL = ntohs(res_fields->ttl);
-		resource_data_length = ntohs(res_fields->dl);
-		printf("response type: %d\nresponse class: %d\nresponse TTL: %d\nresponse data length: %d\n", type, class, TTL, resource_data_length);
-
+		
+	bzero(name_dotted, 500);
+	reader = processName ((unsigned char*) buff_rec, reader, name_dotted);
+	res_fields = (struct response_fields *) reader;
+	resource_data_length = ntohs(res_fields->dl);
 /*	printf("name dotted = %s, length of dotted name = %lu\n", name_dotted, strlen(name_dotted));	
 	printf("type of response = %d\n", ntohs(res_fields->type));*/
+	printf("resource data length: %d\n", resource_data_length);
+	reader = reader + sizeof(struct response_fields);
 
-		/*point to the beginning of resource data*/
-		pointer = pointer + sizeof(struct RESPONSE_fields);
 
-		struct sockaddr_in address;
-		char addr[ans_num][resource_data_length];
-		long *p;
-		char hraddress[INET_ADDRSTRLEN];
+/*	res_data = malloc(resource_data_length);*/
+	/*printf("response data: %s\n", reader);	*/
+	struct sockaddr_in address;
+	char *hraddress;
+	char addr[resource_data_length];
 	for (i=0; i<resource_data_length; i++){
-		addr[j][i] = *(pointer + i);
+		addr[i] = *(reader + i);
 	}
-	p = (long *) addr;
-	address.sin_addr.s_addr = (*p);
-	inet_ntop(AF_INET, &(address.sin_addr), hraddress, INET_ADDRSTRLEN);
-	printf("human readable address: %s\n", hraddress);
-		pointer = pointer + resource_data_length;
-/*	}*/
+	address.sin_addr.s_addr = (unsigned long *) addr;
+	hraddress = inet_ntoa(address.sin_addr);
 
 	close(sockfd);	
+	
+/*	free(res_data);*/
 	return 0;
 }
 /* Processes one string in a DNS resource record.

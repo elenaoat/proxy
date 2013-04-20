@@ -197,6 +197,7 @@ void ngethostbyname(unsigned char *host , int query_type)
         if(ntohs(answers[i].resource->type) == 1) //if its an ipv4 address
         {
             answers[i].rdata = (unsigned char*)malloc(ntohs(answers[i].resource->data_len));
+			printf("rdata length: %d\n", ntohs(answers[i].resource->data_len));
  
             for(j=0 ; j<ntohs(answers[i].resource->data_len) ; j++)
             {

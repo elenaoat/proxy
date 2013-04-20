@@ -9,4 +9,4 @@ upload: uploadclient.c
 
 
 test: test1.c 
-	gcc -o t -Wall test1.c
+	gcc -o t -g -Wall test1.c
