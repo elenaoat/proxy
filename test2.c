@@ -170,6 +170,8 @@ int main(int argc, char **argv){
 		rf.ttl = ntohs(res_fields->ttl);
 		rf.dl = ntohs(res_fields->dl);
 		int size = rf.dl;
+		char address[size];
+		answer[j].res_data = address;
 		answer[j].rf = &rf;
 		/*char address[size];
 		answer[j].res_data = address;*/
@@ -177,7 +179,7 @@ int main(int argc, char **argv){
 
 		/*point to the beginning of resource data, 10 = sizeof RESPONSE_length*/
 		pointer = pointer + 10;
-		answer[j].res_data = (char *) pointer;
+		/*answer[j].res_data = (char *) pointer;*/
 		
 		/*make a copy of the data into answer array*/
 		/*for (i=0; i<size; i++){
