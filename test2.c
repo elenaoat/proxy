@@ -67,8 +67,9 @@ int main(int argc, char **argv){
 	char buff[BUF_SIZE], *name, buff_rec[BUF_SIZE];
 	uint8_t *pointer;
 	struct RESPONSE_fields *res_fields;
+	struct RESPONSE *answer;
 	struct DNS_query *question;
-	int i, bytes, bytes_rec, resource_data_length;
+	int i, j, bytes, bytes_rec, resource_data_length;
 	int sockfd;
 	struct DNS_header *uheader;
 	struct sockaddr_in dest_address; 
@@ -137,87 +138,73 @@ int main(int argc, char **argv){
 		perror("receive error\n");
 	}
 	printf("bytes sent back: %d\n", bytes_rec);
-	uint16_t type, class, que_num, ans_num;
-	uint32_t TTL;
+	uint16_t que_num, ans_num;
 
 	uheader = (struct DNS_header *) buff_rec;
 	que_num = ntohs(uheader->q_count);
 	ans_num = ntohs(uheader->ans_count);
 	printf("response question number: %d\nresponse answer number: %d\n", que_num, ans_num);
+	answer = calloc(sizeof(struct RESPONSE), ans_num);
+
 
 	/*point to part after DNS header*/
 	pointer = (unsigned char *) &buff_rec[(sizeof(struct DNS_header) + strlen((const char *) name) + 1 + sizeof(struct DNS_query))];
 
-/*	printf("The number of questions: %d\n", ntohs(uheader->q_count));
-	printf("The number of answers: %d\n", ntohs(uheader->ans_count));	*/
+		struct RESPONSE_fields rf;
+		const char *ret_val;
+		struct sockaddr_in a;
+		long *p;
 
-/*	printf("sizeof(unsigned int) = %lu sizeof(unsigned short) = %lu\n", sizeof(unsigned int), sizeof(unsigned short));	
-	
-	printf("sizeof(unsigned char) = %lu sizeof(char) = %lu\n", sizeof(unsigned char), sizeof(char));	
-*/
-
-/*	printf("sizeof(uint8_t)=%lu, sizeof(char)=%lu\n", sizeof(uint8_t), sizeof(char));*/
-
-	int j=0;
 
 	/*processing answers section*/
-/*	for (j=0; j<ans_num; j++){	*/
+	for (j=0; j<ans_num; j++){	
 		bzero(name_dotted, NAME_SIZE);
 		pointer = processName ((unsigned char*) buff_rec, pointer, name_dotted);
-
+		answer[j].name = name_dotted;
 		printf("response name: %s\n", name_dotted);
 		/*point to response fields structure: type, class, TTL, data length */
 		res_fields = (struct RESPONSE_fields *) pointer;
 
-		type = ntohs(res_fields->type);
-		class = ntohs(res_fields->class);
-		TTL = ntohs(res_fields->ttl);
-		resource_data_length = ntohs(res_fields->dl);
-		printf("response type: %d\nresponse class: %d\nresponse TTL: %d\nresponse data length: %d\n", type, class, TTL, resource_data_length);
+		rf.type = ntohs(res_fields->type);	
+		rf.class = ntohs(res_fields->class);
+		rf.ttl = ntohs(res_fields->ttl);
+		rf.dl = ntohs(res_fields->dl);
+		int size = rf.dl;
+		answer[j].rf = &rf;
+		/*char address[size];
+		answer[j].res_data = address;*/
+/*		printf("response type: %d\nresponse class: %d\nresponse TTL: %d\nresponse data length: %d\n", type, class, TTL, resource_data_length);*/
 
-
-/*	printf("name dotted = %s, length of dotted name = %lu\n", name_dotted, strlen(name_dotted));	
-	printf("type of response = %d\n", ntohs(res_fields->type));*/
-
-		/*point to the beginning of resource data*/
-		pointer = pointer + sizeof(struct RESPONSE_fields);
+		/*point to the beginning of resource data, 10 = sizeof RESPONSE_length*/
+		pointer = pointer + 10;
+		answer[j].res_data = (char *) pointer;
 		
-		const char *ret_val;
-		uint8_t addr[ans_num][resource_data_length];
-		char hraddress[INET_ADDRSTRLEN];
-		struct sockaddr_in a;
-		long *p;
-		bzero(hraddress, INET_ADDRSTRLEN);
-/*		for (i=0; i<resource_data_length; i++){
-			addr[j][i] = pointer[i];
-		}
-
-		p = (long*) addr[j];*/
+		/*make a copy of the data into answer array*/
+		/*for (i=0; i<size; i++){
+			answer[j].res_data[i] = pointer[i]; 
+		}*/
+		
 		p = (long*) pointer;
 		a.sin_addr.s_addr = (*p);
-		ret_val = inet_ntop(AF_INET, &(a.sin_addr), hraddress, INET_ADDRSTRLEN);
+		/*inet_ntop null terminates the string*/
+		ret_val = inet_ntop(AF_INET, &(a.sin_addr), answer[j].res_data , INET_ADDRSTRLEN);
 		if (ret_val <= 0){
 			perror("error converting IP address\n");
-		} else {
-			printf("response address: %s\n", hraddress);
+		} 
+		else {
+			printf("response ip address: %s\n", answer[j].res_data);
 		}
-	/*pointer = pointer + resource_data_length;*/
-/*	}*/
+		pointer = pointer + answer[j].rf->dl;
+	}
+/*	for (j=0; j<ans_num; j++){
+		free(answer[j].res_data);
+	}*/
 
+	free(answer);
 	close(sockfd);	
 	return 0;
 }
-/* Processes one string in a DNS resource record.
- *
- * bstart (in):	pointer to the start of the DNS message (UDP payload)
- * bcur (in):	pointer to the currently processed position in a message.
-		This should point to the start of compressed or uncompressed
-		name string.
- * name (out):	buffer for storing the name string in dot-separated format
- *
- * returns:	updated position of bcur, pointing to the next position
- *		following the name 
- */
+
 uint8_t *processName(uint8_t *bstart, uint8_t *bcur, char *name)
 {
 	uint8_t *p = bcur;
@@ -286,5 +273,26 @@ void name_encode(char* name, char* name_encoded){
     name_encoded[i+1] = 0;
     /*printf ("%s, strlen=%lu\n", name_encoded, strlen(name_encoded));*/
 }
+/*	printf("The number of questions: %d\n", ntohs(uheader->q_count));
+	printf("The number of answers: %d\n", ntohs(uheader->ans_count));	*/
 
+/*	printf("sizeof(unsigned int) = %lu sizeof(unsigned short) = %lu\n", sizeof(unsigned int), sizeof(unsigned short));	
+	
+	printf("sizeof(unsigned char) = %lu sizeof(char) = %lu\n", sizeof(unsigned char), sizeof(char));	
+*/
+
+/*	printf("sizeof(uint8_t)=%lu, sizeof(char)=%lu\n", sizeof(uint8_t), sizeof(char));*/
+
+
+/* Processes one string in a DNS resource record.
+ *
+ * bstart (in):	pointer to the start of the DNS message (UDP payload)
+ * bcur (in):	pointer to the currently processed position in a message.
+		This should point to the start of compressed or uncompressed
+		name string.
+ * name (out):	buffer for storing the name string in dot-separated format
+ *
+ * returns:	updated position of bcur, pointing to the next position
+ *		following the name 
+ */
 
