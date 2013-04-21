@@ -14,25 +14,25 @@ void name_encode(char* name, char* name_encoded);
 
 
 struct DNS_header {
-    uint16_t id; // identification number
+    uint16_t id; /* identification number */
+
+   	uint8_t rd :1; /* recursion desired */
+    uint8_t tc:1; /* truncated message*/
+    uint8_t aa :1; /* authoritive answer*/
+    uint8_t opcode :4; /* purpose of message*/
+    uint8_t qr :1; /* query/response flag*/
+
+    uint8_t rcode :4; /* response code*/
+    uint8_t cd :1; /* checking disabled*/
+    uint8_t ad :1; /* authenticated data*/
+    uint8_t z :1; /* its z! reserved*/
+    uint8_t ra :1; /* recursion available*/
 
  
-   	uint8_t rd :1; // recursion desired 
-    uint8_t tc:1; // truncated message
-    uint8_t aa :1; // authoritive answer
-    uint8_t opcode :4; // purpose of message
-    uint8_t qr :1; // query/response flag
- 
-    uint8_t rcode :4; // response code
-    uint8_t cd :1; // checking disabled
-    uint8_t ad :1; // authenticated data
-    uint8_t z :1; // its z! reserved
-    uint8_t ra :1; // recursion available
- 
-    uint16_t q_count; // number of question entries
-    uint16_t ans_count; // number of answer entries
-    uint16_t auth_count; // number of authority entries
-    uint16_t add_count; // number of resource entries
+    uint16_t q_count; /* number of question entries*/
+    uint16_t ans_count; /* number of answer entries*/
+    uint16_t auth_count; /* number of authority entries*/
+    uint16_t add_count; /* number of resource entries*/
 };
 
 
@@ -69,7 +69,7 @@ int main(int argc, char **argv){
 	struct RESPONSE_fields *res_fields;
 	struct RESPONSE *answer;
 	struct DNS_query *question;
-	int i, j, bytes, bytes_rec, resource_data_length;
+	int i, j, bytes, bytes_rec;
 	int sockfd;
 	struct DNS_header *uheader;
 	struct sockaddr_in dest_address; 
@@ -104,7 +104,8 @@ int main(int argc, char **argv){
 	bzero(&dest_address, sizeof(dest_address));
 	dest_address.sin_family = AF_INET;
 	dest_address.sin_port = htons(53);
-	dest_address.sin_addr.s_addr = inet_addr("208.67.222.222");
+	dest_address.sin_addr.s_addr = inet_addr("8.8.8.8");
+	/*dest_address.sin_addr.s_addr = inet_addr("208.67.222.222");*/
 	if (argc != 2){
 		printf("the name wasn't entered\n");
 	} else {
@@ -138,12 +139,15 @@ int main(int argc, char **argv){
 		perror("receive error\n");
 	}
 	printf("bytes sent back: %d\n", bytes_rec);
-	uint16_t que_num, ans_num;
+	uint16_t que_num, ans_num, auth_num, add_num;
 
 	uheader = (struct DNS_header *) buff_rec;
 	que_num = ntohs(uheader->q_count);
 	ans_num = ntohs(uheader->ans_count);
+	auth_num = ntohs(uheader->auth_count);
+	add_num = ntohs(uheader->add_count);
 	printf("response question number: %d\nresponse answer number: %d\n", que_num, ans_num);
+	printf("response authoritative records number: %d\nresponse additional records number: %d\n", auth_num, add_num);
 	answer = calloc(sizeof(struct RESPONSE), ans_num);
 
 
@@ -154,13 +158,14 @@ int main(int argc, char **argv){
 		const char *ret_val;
 		struct sockaddr_in a;
 		long *p;
-
-
+		int size; 		
+		char *response_parsed;
 	/*processing answers section*/
 	for (j=0; j<ans_num; j++){	
 		bzero(name_dotted, NAME_SIZE);
 		pointer = processName ((unsigned char*) buff_rec, pointer, name_dotted);
 		answer[j].name = name_dotted;
+
 		printf("response name: %s\n", name_dotted);
 		/*point to response fields structure: type, class, TTL, data length */
 		res_fields = (struct RESPONSE_fields *) pointer;
@@ -169,25 +174,21 @@ int main(int argc, char **argv){
 		rf.class = ntohs(res_fields->class);
 		rf.ttl = ntohs(res_fields->ttl);
 		rf.dl = ntohs(res_fields->dl);
-		int size = rf.dl;
+		size = rf.dl;
 		char address[size];
 		answer[j].res_data = address;
 		answer[j].rf = &rf;
-		/*char address[size];
-		answer[j].res_data = address;*/
 /*		printf("response type: %d\nresponse class: %d\nresponse TTL: %d\nresponse data length: %d\n", type, class, TTL, resource_data_length);*/
 
 		/*point to the beginning of resource data, 10 = sizeof RESPONSE_length*/
 		pointer = pointer + 10;
-		/*answer[j].res_data = (char *) pointer;*/
-		
-		/*make a copy of the data into answer array*/
-		/*for (i=0; i<size; i++){
-			answer[j].res_data[i] = pointer[i]; 
-		}*/
-		
 		p = (long*) pointer;
 		a.sin_addr.s_addr = (*p);
+
+		/*for (i=0; i<size; i++){
+			response_parsed[i]  
+			
+		}*/
 		/*inet_ntop null terminates the string*/
 		ret_val = inet_ntop(AF_INET, &(a.sin_addr), answer[j].res_data , INET_ADDRSTRLEN);
 		if (ret_val <= 0){
@@ -195,13 +196,24 @@ int main(int argc, char **argv){
 		} 
 		else {
 			printf("response ip address: %s\n", answer[j].res_data);
+			/*address[size] = 0;*/
+
 		}
 		pointer = pointer + answer[j].rf->dl;
 	}
-/*	for (j=0; j<ans_num; j++){
-		free(answer[j].res_data);
+	response_parsed = malloc(ans_num*size);
+	printf("one answer IP: %s\n", answer[1].res_data);
+/*	for (i=0; i<ans_num; i++){
+		strncpy(response_parsed, answer[i].res_data, size);
+		response_parsed = response_parsed + size;
 	}*/
+		
+	/*put the response into a file*/
 
+	/*Read authoritative section answers*/
+
+	
+	free(response_parsed);
 	free(answer);
 	close(sockfd);	
 	return 0;
@@ -232,7 +244,7 @@ uint8_t *processName(uint8_t *bstart, uint8_t *bcur, char *name)
 						       nested pointers in msg */
 			compressed = 1;
 		} else if (*p > 0) {
-			// strbuf contains one element of name, not full name
+			/* strbuf contains one element of name, not full name*/
 			memcpy(strbuf, p+1, *p);
 			strp += *p;
 			p += *p + 1;
@@ -297,4 +309,10 @@ void name_encode(char* name, char* name_encoded){
  * returns:	updated position of bcur, pointing to the next position
  *		following the name 
  */
-
+/* TODO
+ * add malloc into the loop and assign to each var values that are in order to save them into another array
+ *
+ *
+ *
+ *
+ * */
