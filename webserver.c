@@ -19,6 +19,7 @@
 
 
 /*function that puts together the response that is sent to client*/
+/*returns pointer to the buffer that contains the whole response*/
 char *http_response(int flag, int content_length, char *file_contents, size_t *response_size_total){
 
 	char *status;

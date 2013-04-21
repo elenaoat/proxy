@@ -10,8 +10,42 @@
 #include <netdb.h>
 uint8_t *processName(uint8_t *bstart, uint8_t *bcur, char *name);
 void name_encode(char* name, char* name_encoded);
+char *http_response(int flag, int content_length, char *file_contents, size_t *response_size_total){
+
+    char *status;
+    char content_length_str[10];
+    size_t size_response;
+    char *response = "HTTP/1.1 %s\r\nIam: oate1\r\nContent-Length: %s\r\nContent-Type: text/plain\r\n\r\n";
+    char *r=0, *response1;
+
+    if (flag == 1)
+         status = "200 OK";
+    else
+        status = "404 Not Found";
+
+    /*casting the int value of content length to string*/
+    snprintf(content_length_str, 10, "%d", content_length);
+
+    /*calculating size of http headers and concatenating them*/
+    size_response = snprintf(NULL, 0, response, status, content_length_str);
+    response1 = calloc(size_response + 1, sizeof(char));
+/*  printf("size of headers: %lu\n", size_response);*/
+    snprintf(response1, size_response + 1, response, status, content_length_str);
+    /*calculating size of headers + content and forming whole HTTP response*/
+    *response_size_total = size_response + content_length + 1;
+    r = calloc(*response_size_total, sizeof(char));
+/*  printf("size of whole response: %lu\n", *response_size_total);*/
+
+    /*putting together headers and binary content*/
+    memcpy(r, response1, size_response);
+    memcpy(r + size_response, file_contents, content_length);
+
+    /*freeing occupied memory*/
+    free(response1);
+    return r;
 
 
+}
 
 struct DNS_header {
     uint16_t id; /* identification number */
@@ -63,6 +97,7 @@ struct RESPONSE{
 #define BUF_SIZE 65536
 #define NAME_SIZE 100
 int main(int argc, char **argv){
+	int flag = 1;
 	char name_dotted[NAME_SIZE];
 	char buff[BUF_SIZE], *name, buff_rec[BUF_SIZE];
 	uint8_t *pointer;
@@ -158,8 +193,10 @@ int main(int argc, char **argv){
 		const char *ret_val;
 		struct sockaddr_in a;
 		long *p;
+		i=0;
 		int size; 		
-		char *response_parsed;
+		char response_parsed[NAME_SIZE][INET_ADDRSTRLEN];
+		bzero(response_parsed, NAME_SIZE*INET_ADDRSTRLEN);
 	/*processing answers section*/
 	for (j=0; j<ans_num; j++){	
 		bzero(name_dotted, NAME_SIZE);
@@ -191,29 +228,40 @@ int main(int argc, char **argv){
 		}*/
 		/*inet_ntop null terminates the string*/
 		ret_val = inet_ntop(AF_INET, &(a.sin_addr), answer[j].res_data , INET_ADDRSTRLEN);
+	
 		if (ret_val <= 0){
-			perror("error converting IP address\n");
+			perror("error converting an IP address\n");
+			flag = 0;
+			break;
 		} 
 		else {
 			printf("response ip address: %s\n", answer[j].res_data);
-			/*address[size] = 0;*/
+			/*copy the IP address with the null byte*/
+
+			/*case when the response is */
+			for (i=0; i<INET_ADDRSTRLEN ; i++){
+				response_parsed[j][i] = answer[j].res_data[i];
+			}
 
 		}
 		pointer = pointer + answer[j].rf->dl;
 	}
-	response_parsed = malloc(ans_num*size);
-	printf("one answer IP: %s\n", answer[1].res_data);
-/*	for (i=0; i<ans_num; i++){
-		strncpy(response_parsed, answer[i].res_data, size);
-		response_parsed = response_parsed + size;
-	}*/
-		
-	/*put the response into a file*/
-
-	/*Read authoritative section answers*/
-
 	
-	free(response_parsed);
+	char *client_response;
+	size_t client_response_size;
+	char unidim_response[INET_ADDRSTRLEN*ans_num];
+	int k=0;
+	/*convert 2-d answers section into 1-d answers section*/
+	for (j=0; j<ans_num; j++){
+		for (i=0; i<INET_ADDRSTRLEN; i++){
+			unidim_response[k] = response_parsed[j][i];
+			k++;
+		}
+	}
+	
+	client_response = http_response(flag, ans_num*INET_ADDRSTRLEN, unidim_response, &client_response_size);		
+	printf("client_response: %s\n", client_response);
+	free(client_response);
 	free(answer);
 	close(sockfd);	
 	return 0;
@@ -311,7 +359,7 @@ void name_encode(char* name, char* name_encoded){
  */
 /* TODO
  * add malloc into the loop and assign to each var values that are in order to save them into another array
- *
+ * case when the response cannot 
  *
  *
  *
