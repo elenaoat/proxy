@@ -10,12 +10,67 @@
 #include <netdb.h>
 #include <signal.h>
 #define BUFSIZE 100000
+#define BUF_SIZE 65536
+#define NAME_SIZE 100
 #define PATHMAX 1024
 #include <sys/wait.h>
 #include <syslog.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+
+
+struct DNS_header {
+    uint16_t id; /* identification number */
+
+    uint8_t rd :1; /* recursion desired */
+    uint8_t tc:1; /* truncated message*/
+    uint8_t aa :1; /* authoritive answer*/
+    uint8_t opcode :4; /* purpose of message*/
+    uint8_t qr :1; /* query/response flag*/
+
+    uint8_t rcode :4; /* response code*/
+    uint8_t cd :1; /* checking disabled*/
+    uint8_t ad :1; /* authenticated data*/
+    uint8_t z :1; /* its z! reserved*/
+    uint8_t ra :1; /* recursion available*/
+
+
+    uint16_t q_count; /* number of question entries*/
+    uint16_t ans_count; /* number of answer entries*/
+    uint16_t auth_count; /* number of authority entries*/
+    uint16_t add_count; /* number of resource entries*/
+};
+
+
+struct DNS_query {
+    uint16_t type;
+    uint16_t class;
+};
+
+typedef struct {
+    char *name;
+    struct DNS_query *q;
+} QUERY;
+
+
+struct RESPONSE_fields {
+    uint16_t type;
+    uint16_t class;
+    uint32_t ttl;
+    uint16_t dl;
+};
+
+struct RESPONSE{
+    char *name;
+    struct RESPONSE_fields *rf;
+    char *res_data;
+};
+
+
+
+
+
 
 
 /*function that puts together the response that is sent to client*/
@@ -78,14 +133,15 @@ int handle_http(int clisockfd){
 	int b=0;
 	char home[PATHMAX];
 	char final[30];
+	char *ptr1, *ptr2, *domain;
+	size_t domain_size;
 	
 	/*get currently working directory*/
 	if (getcwd(home, PATHMAX) == NULL){
 		perror("getcwd error\n");
 		return -1;
 	} 
-	home[strlen(home)] = '/';
-    	home[strlen(home)+1] = '\0';
+	home[strlen(home)] = '\0';
 
 
 	/*	size_t *uploadfile_ptr = &uploadfile;*/
@@ -97,10 +153,12 @@ int handle_http(int clisockfd){
 		
 		total += bytes;	
 
-		if (!type){
+		if (!type && (strstr(req, "PUT") || strstr(req, "GET"))){
 			for (i=0; i<BUFSIZE; i++){
 				req_copy[i] = req[i];		
 			}
+
+			/*filename will be dns-query in case of DNS request*/
 			strtok(req_copy, "/");
 			filenamed = strtok(NULL, " ");
 			filename = malloc(strlen(filenamed) + 1);
@@ -124,14 +182,18 @@ int handle_http(int clisockfd){
 		/*	uploadfile_contents = uploadfile_contents + bytes;*/
 		}
 		/*checking if the request has PUT in its headers or is known to be PUT req */
-		if ((!type) && ((strstr(req, "PUT")))){
+		if ((!type) && ((strstr(req, "PUT")) || (strstr(req, "POST /dns-query")))){
 			/*printf("This is a PUT request\n");*/
-			type = 2;
+			if (strstr(req, "PUT")){
+				type = 2;
+			} else {
+				type = 3;
+			}
 			/*calculating headers' size in the request sent by client*/
 			if (!double_newline){
 				if ((double_newline = strstr(req, "\r\n\r\n"))){
 					headers_size = double_newline - req + 4;
-/*					printf("Headers' size: %d\n", headers_size);*/
+					printf("Headers' size: %d\n", headers_size);
 				}								
 			}
 		
@@ -143,7 +205,7 @@ int handle_http(int clisockfd){
 				}
 				if ((strtok(ptr, " "))){ 
 					 content_length = strtol(strtok(NULL, "\r\n\r\n"), NULL, 10);
-/*					 printf("Content-length: %d\n", content_length);*/
+					 printf("Content-length: %d\n", content_length);
 					 uploadfile_contents = calloc(content_length, sizeof(char));
 					 memcpy(uploadfile_contents, req_copy + headers_size, bytes - headers_size);
 /*					 printf("uploadfile_contents:\n%s\n", uploadfile_contents);*/
@@ -151,6 +213,17 @@ int handle_http(int clisockfd){
 					 
 				}
 			}
+			if ((type==3) && (ptr1=strstr(req_copy, "Name="))){
+				/*parse contents of the dns query*/		
+				ptr2=strstr(req_copy, "&");
+				domain_size = ptr2 - ptr1 - 5;
+				printf("domain size: %lu\n", domain_size);
+				domain = calloc(domain_size, sizeof(char));
+				for (i=0; i<domain_size; i++){
+					domain[i] = ptr1[i+5];
+				}
+			}
+			
 
 		}
 		if (total == content_length + headers_size) 
@@ -167,18 +240,40 @@ int handle_http(int clisockfd){
 		printf("This type of request cannot be handled by this server\n");
 		return -1;
 	}
+/*	if (type == 3){*/
+/*		printf("this is dns query\n");*/
+		/*uploadfile_contents is not a string, because it doesn't contain null byte -> cannot be printed*/
+/*		printf("request contents: %s\nrequest contents size: %lu\n", uploadfile_contents, uploadfile);*/
+/*		free(uploadfile_contents);
+		free(filename);
+		return -1;	
+	}*/
 	if (bytes < 0){
 		perror("Error reading from client\n");
 		return -1;
 	}
 	
 	/*Open file for reading*/
-
-	strcat(final, home);
-	strcat(final, filename);
-	printf("filename:%s\n", final);	
-	doc = fopen(final, "r");
+	if (type != 3){
+		strcat(final, home);
+		strcat(final, "/\0");
+		strcat(final, filename);
+		printf("filename:%s\n", final);	
+		doc = fopen(final, "r");
+	}
 	switch(type){
+		case 3:
+			printf("domain: ");
+			for(i=0; i<domain_size; i++){
+				printf("%c", domain[i]);
+			}
+			printf("\n");
+			
+			/*printf("domain: %s\n", domain);*/
+			free(domain);
+			free(uploadfile_contents);
+/*			free(filename);*/
+			break;
 		case 1:
 			if (doc){
 				fseek(doc, 0, SEEK_END);
