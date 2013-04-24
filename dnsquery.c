@@ -62,7 +62,7 @@ struct RESPONSE{
 #define BUF_SIZE 65536
 #define NAME_SIZE 100
 char* dns_query(char *domain, size_t *response_to_client_size){
-	char *response_to_client, *text;
+	char *response_to_client, *text, *ipaddress;
 	int flag = 1;
 	char name_dotted[NAME_SIZE];
 	char buff[BUF_SIZE], *name, buff_rec[BUF_SIZE];
@@ -73,8 +73,7 @@ char* dns_query(char *domain, size_t *response_to_client_size){
 	int i, j, bytes, bytes_rec;
 	int sockfd;
 	struct DNS_header *uheader;
-	struct sockaddr_in dest_address; 
-	char ip_text[INET_ADDRSTRLEN];
+	/*struct sockaddr_in dest_address; */
 	struct timeval tv;
 	/*printf("entered hostname: %s\n", argv[1]);*/
 /*	bzero(buff, 65536);*/
@@ -99,41 +98,77 @@ char* dns_query(char *domain, size_t *response_to_client_size){
 	uheader->ans_count = 0;
 	uheader->auth_count = 0;
 	uheader->add_count = 0;
-	/*create a UDP socket*/
-	sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	/*set socket flags for timeout*/
-	setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-	
-	if(sockfd < 0){
-		perror("error creating socket\n");
-	}
-/*	dest_address = (struct sockaddr_in *) &address;*/
-	bzero(&dest_address, sizeof(dest_address));
-	dest_address.sin_family = AF_INET;
-	dest_address.sin_port = htons(53);
-	dest_address.sin_addr.s_addr = inet_addr("82.130.0.5");
-	/*dest_address.sin_addr.s_addr = inet_addr("208.67.222.222");*/
-/*	printf("sin_port: %u\n", dest_address->sin_port);	*/
-	inet_ntop(AF_INET, &(dest_address.sin_addr), ip_text, INET_ADDRSTRLEN);	
-	/*!!!*/
-	name = &buff[sizeof(struct DNS_header)];
 
-	name_encode(domain, name);
-	question = (struct DNS_query *) &buff[sizeof(struct DNS_header) + strlen((const char *) name) + 1];
-	/*query type*/
-	question->type = htons(1);
-	question->class = htons(1);
-/*	printf("%s\n", name);*/
-/*	printf("%d\n", question->type);*/
-	/*printf("sockfd: %i\n", sockfd);*/
-/*	printf("name: %s\n", name);*/
-	bytes = sendto(sockfd, buff, sizeof(struct DNS_header) + sizeof(struct DNS_query) + strlen((const char *) name) + 1, 0, (struct sockaddr *) &dest_address, sizeof(dest_address));
+	/**************IPv6 DNS server starts*******************/
+	/*Uncomment the lines insidethe IPv6 DNS server to use IPv6 address DNS
+	 * address */
+	/*ipaddress = "2001:708:30:10::2";*/
+	/*ipaddress = "2001:4860:4860::8888";*/
+
+	
+	/*{ */
+		/*struct sockaddr_in6 dest_address;*/
+		/*sockfd = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);*/
+		/*setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));*/
+	
+		/*if(sockfd < 0){*/
+			/*perror("error creating socket\n");*/
+		/*}*/
+		/*bzero(&dest_address, sizeof(dest_address));*/
+		/*dest_address.sin6_family = AF_INET6;*/
+		/*dest_address.sin6_port = htons(53);*/
+		/*inet_pton(AF_INET6, ipaddress, &dest_address.sin6_addr);*/
+	/**************IPv6 DNS server ends *******************/
+
+
+
+
+
+
+	/**************IPv4 DNS server starts*******************/
+	/*Uncomment the lines inside the IPv4 DNS server to use IPv4 address DNS
+	 * address */
+		
+		/*[>	create a UDP socket<]*/
+		sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+		/*set socket flags for timeout*/
+			setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+		
+
+		/*ipaddress = "208.67.222.222";*/
+		/*ipaddress = "195.148.124.10";*/
+		/*ipaddress = "8.8.8.8";*/
+		ipaddress = "4.85.23.113";
+
+		if(sockfd < 0){
+			perror("error creating socket\n");
+		}
+	{	struct sockaddr_in dest_address;
+		bzero(&dest_address, sizeof(dest_address));
+		dest_address.sin_family = AF_INET;
+		dest_address.sin_port = htons(53);
+		dest_address.sin_addr.s_addr = inet_addr(ipaddress);
+	
+	/*******************IPv4 DNS address ends****************************/	
+		name = &buff[sizeof(struct DNS_header)];
+
+		name_encode(domain, name);
+		question = (struct DNS_query *) &buff[sizeof(struct DNS_header) + strlen((const char *) name) + 1];
+		/*query type*/
+		question->type = htons(1);
+		question->class = htons(1);
+		/*	printf("%s\n", name);*/
+		/*	printf("%d\n", question->type);*/
+		/*printf("sockfd: %i\n", sockfd);*/
+		/*	printf("name: %s\n", name);*/
+		bytes = sendto(sockfd, buff, sizeof(struct DNS_header) + sizeof(struct DNS_query) + strlen((const char *) name) + 1, 0, (struct sockaddr *) &dest_address, sizeof(dest_address));
+	}
 	printf("bytes sent to DNS server: %d\n", bytes);	
 	if (bytes == -1){
 		perror("sendto error\n");
 		return "\0";
 	}
-
+	
 	bzero(buff_rec, BUF_SIZE);
 	
 	bytes_rec = recvfrom(sockfd, &buff_rec, BUF_SIZE, 0, NULL, 0);
@@ -142,9 +177,9 @@ char* dns_query(char *domain, size_t *response_to_client_size){
 	/*char *response_to_client;*/
 		perror("recvfrom:\n");	
 		if (errno == EWOULDBLOCK){
-			fprintf(stderr, "UDP socket timeout. UDP packet probably lost\n");
+			fprintf(stderr, "UDP socket timeout. Response UDP packet never reached DNS proxy\n");
 			flag = 0;
-			text =  "UPD packet lost. Try again";
+			text =  "UPD socket timeout. Response UDP packet was either lost, or such a DNS server doesn't exist";
 			response_to_client = http_response(flag, strlen(text), text, response_to_client_size);
 		/*	printf("%s\n", response_to_client);*/
 			return response_to_client;		
