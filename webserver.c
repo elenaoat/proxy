@@ -19,6 +19,20 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+int is_full_request(char * req, int req_len) {
+	char * full_headers = strstr(req, "\r\n\r\n");
+	if (!full_headers) return 0;
+	char * ptr = strstr(req, "Content-Length:");
+	if (ptr) {
+		ptr += strlen("Content-Length:");
+		int content_len = strtol(ptr, NULL, 10);
+		// request length is equal headers length plus content plus \r\n\r\n
+		return full_headers + 4 - req + content_len == req_len;
+	} else {
+		// no content-length and headers were received
+		return 1;
+	}
+}
 
 /*function that handles the http request from the client*/
 int handle_http(int clisockfd){
@@ -60,105 +74,99 @@ int handle_http(int clisockfd){
 	bzero(&req, sizeof(req));
 
 	total = 0;
-	while((bytes = read(clisockfd, req, BUFSIZE)) > 0){
-	/*	printf("Received bytes: %d\n", bytes);*/
+	while((bytes = read(clisockfd, req + total, BUFSIZE - total)) > 0) {
+		total += bytes;
+		int is_full = is_full_request(req, total);
+		printf("Received bytes: %d\nIs full: %d\n", bytes, is_full);
+		printf("Whole request:\n%s\n-- End whole request --", req);
+		if (is_full_request(req, total)) {
+			break;
+		}
+	}
 		
-		total += bytes;	
 
-		if (!type && (strstr(req, "PUT") || strstr(req, "GET"))){
+	if (!type && (strstr(req, "PUT") || strstr(req, "GET"))){
+		for (i=0; i<BUFSIZE; i++){
+			req_copy[i] = req[i];		
+		}
+
+		/*filename will be dns-query in case of DNS request*/
+		strtok(req_copy, "/");
+		filenamed = strtok(NULL, " ");
+		filename = malloc(strlen(filenamed) + 1);
+		strcpy(filename, filenamed);
+	}
+
+
+	if ((!type) && ((strstr(req, "GET")) != NULL)){	
+		printf("This is a GET request\n");
+		printf("the request sent looks like this:\n%s\n", req);
+		type = 1;
+	
+	}
+	
+	if (type){
+		memcpy(uploadfile_contents + uploadfile + b, req, bytes);
+		b += bytes;
+	/*	uploadfile_contents = uploadfile_contents + bytes;*/
+	}
+	/*checking if the request has PUT in its headers or is known to be PUT req */
+	if ((!type) && ((strstr(req, "PUT")) || (strstr(req, "POST /dns-query")))){
+		/*printf("This is a PUT request\n");*/
+		if (strstr(req, "PUT")){
+			type = 2;
+		} else {
+			type = 3;
+		}
+		/*calculating headers' size in the request sent by client*/
+		if (!double_newline){
+			if ((double_newline = strstr(req, "\r\n\r\n"))){
+				headers_size = double_newline - req + 4;
+				printf("Headers' size: %d\n", headers_size);
+			}								
+		}
+	
+		bzero(&req_copy, BUFSIZE);		
+		/*identifying content length*/
+		if ((ptr=strstr(req, "Content-Length:"))){
 			for (i=0; i<BUFSIZE; i++){
 				req_copy[i] = req[i];		
 			}
-
-			/*filename will be dns-query in case of DNS request*/
-			strtok(req_copy, "/");
-			filenamed = strtok(NULL, " ");
-			filename = malloc(strlen(filenamed) + 1);
-			strcpy(filename, filenamed);
-		}
-
-
-		if ((!type) && ((strstr(req, "GET")) != NULL)){	
-			printf("This is a GET request\n");
-			printf("the request sent looks like this:\n%s\n", req);
-			type = 1;
-			if(filename){
-				break;
-			}
-		
-		}
-		
-		if (type){
-			memcpy(uploadfile_contents + uploadfile + b, req, bytes);
-			b += bytes;
-		/*	uploadfile_contents = uploadfile_contents + bytes;*/
-		}
-		/*checking if the request has PUT in its headers or is known to be PUT req */
-		if ((!type) && ((strstr(req, "PUT")) || (strstr(req, "POST /dns-query")))){
-			/*printf("This is a PUT request\n");*/
-			if (strstr(req, "PUT")){
-				type = 2;
-			} else {
-				type = 3;
-			}
-			/*calculating headers' size in the request sent by client*/
-			if (!double_newline){
-				if ((double_newline = strstr(req, "\r\n\r\n"))){
-					headers_size = double_newline - req + 4;
-					printf("Headers' size: %d\n", headers_size);
-				}								
-			}
-		
-			bzero(&req_copy, BUFSIZE);		
-			/*identifying content length*/
-			if ((ptr=strstr(req, "Content-Length:"))){
-				for (i=0; i<BUFSIZE; i++){
-					req_copy[i] = req[i];		
-				}
-				if ((strtok(ptr, " "))){ 
-					 content_length = strtol(strtok(NULL, "\r\n\r\n"), NULL, 10);
-					 printf("Content-length: %d\n", content_length);
-					 uploadfile_contents = calloc(content_length, sizeof(char));
-					 memcpy(uploadfile_contents, req_copy + headers_size, bytes - headers_size);
+			if ((strtok(ptr, " "))){ 
+				 content_length = strtol(strtok(NULL, "\r\n\r\n"), NULL, 10);
+				 printf("Content-length: %d\n", content_length);
+				 uploadfile_contents = calloc(content_length, sizeof(char));
+				 memcpy(uploadfile_contents, req_copy + headers_size, bytes - headers_size);
 /*					 printf("uploadfile_contents:\n%s\n", uploadfile_contents);*/
-					 uploadfile = bytes - headers_size;
-					 
-				}
+				 uploadfile = bytes - headers_size;
+				 
 			}
-			if ((type==3) && (ptr1=strstr(req_copy, "Name="))){
-				/*parse contents of the dns query*/		
-				ptr2=strstr(req_copy, "&");
-				domain_size = ptr2 - ptr1 - 5;
-				printf("domain size: %lu\n", domain_size);
-				char * type_ptr = strstr(req_copy, "Type=") + 5;
-				if (strstr(type_ptr, "AAAA")) {
-					query_type = 28;
-				} else if (strstr(type_ptr, "A")) {
-					query_type = 1;
-				} else if (strstr(type_ptr, "MX")) {
-					query_type = 15;
-				}
-				/*allocate enough bytes for domain name, including null byte*/
-				domain = calloc(domain_size + 1, sizeof(char));
-				for (i=0; i<domain_size; i++){
-					domain[i] = ptr1[i+5];
-				}
-				domain[domain_size] = '\0';
-			}
-
-			
-
 		}
-		if (total == content_length + headers_size) 
-		{
-/*			for (i=0; i<content_length; i++){
-				printf("%c", uploadfile_contents[i]);						
+		if ((type==3) && (ptr1=strstr(req_copy, "Name="))){
+			/*parse contents of the dns query*/		
+			ptr2=strstr(req_copy, "&");
+			domain_size = ptr2 - ptr1 - 5;
+			printf("domain size: %lu\n", domain_size);
+			char * type_ptr = strstr(req_copy, "Type=") + 5;
+			if (strstr(type_ptr, "AAAA")) {
+				query_type = 28;
+			} else if (strstr(type_ptr, "A")) {
+				query_type = 1;
+			} else if (strstr(type_ptr, "MX")) {
+				query_type = 15;
 			}
-			printf("\n");			*/
-			break;	
+			/*allocate enough bytes for domain name, including null byte*/
+			domain = calloc(domain_size + 1, sizeof(char));
+			for (i=0; i<domain_size; i++){
+				domain[i] = ptr1[i+5];
+			}
+			domain[domain_size] = '\0';
 		}
+
+		
 
 	}
+
 	if (type == 0){
 		printf("This type of request cannot be handled by this server\n");
 		return -1;

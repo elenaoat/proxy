@@ -206,8 +206,6 @@ char* dns_query(char *domain, int query_type, size_t *response_to_client_size){
 
 		struct RESPONSE_fields rf;
 		const char *ret_val;
-		struct sockaddr_in a;
-		long *p;
 		i=0;
 		int size; 		
 		char response_parsed[NAME_SIZE][MAX_DATA_LENGTH];
@@ -227,19 +225,26 @@ char* dns_query(char *domain, int query_type, size_t *response_to_client_size){
 		rf.ttl = ntohs(res_fields->ttl);
 		rf.dl = ntohs(res_fields->dl);
 		size = rf.dl;
-		char address[size];
+		char address[MAX_DATA_LENGTH];
 		answer[j].res_data = address;
 		answer[j].rf = &rf;
 /*		printf("response type: %d\nresponse class: %d\nresponse TTL: %d\nresponse data length: %d\n", type, class, TTL, resource_data_length);*/
 
 		/*point to the beginning of resource data, 10 = sizeof RESPONSE_length*/
 		pointer = pointer + 10;
-		p = (long*) pointer;
-		a.sin_addr.s_addr = (*p);
 
-		/*inet_ntop null terminates the string*/
-		ret_val = inet_ntop(AF_INET, &(a.sin_addr), answer[j].res_data , INET_ADDRSTRLEN);
-	
+		struct in_addr * ipv4_addr;
+		struct in6_addr * ipv6_addr;
+		switch (rf.type) {
+			case 1: // A
+				ipv4_addr = (struct in_addr *) pointer;
+				ret_val = inet_ntop(AF_INET, ipv4_addr, answer[j].res_data , INET_ADDRSTRLEN);
+				break;
+			case 28:
+				ipv6_addr = (struct in6_addr *) pointer;
+				ret_val = inet_ntop(AF_INET6, ipv6_addr, answer[j].res_data , INET6_ADDRSTRLEN);
+				break;
+		}
 		if (ret_val <= 0){
 			perror("error converting an IP address\n");
 			flag = 0;
@@ -251,9 +256,7 @@ char* dns_query(char *domain, int query_type, size_t *response_to_client_size){
 			/*copy the IP address with the null byte*/
 
 			/*case when the response is */
-			for (i=0; i<INET_ADDRSTRLEN-1; i++){
-				response_parsed[j][i] = answer[j].res_data[i];
-			}
+			strcpy(response_parsed[j], answer[j].res_data);
 		/*	printf("ip address: %s", response_parsed[j]);*/
 		}
 		pointer = pointer + answer[j].rf->dl;
