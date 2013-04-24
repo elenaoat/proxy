@@ -10,6 +10,8 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <netdb.h>
+
+#define MAX_DATA_LENGTH 1000
 uint8_t *processName(uint8_t *bstart, uint8_t *bcur, char *name);
 void name_encode(char* name, char* name_encoded);
 struct DNS_header {
@@ -111,7 +113,7 @@ char* dns_query(char *domain, int query_type, size_t *response_to_client_size){
 	bzero(&dest_address, sizeof(dest_address));
 	dest_address.sin_family = AF_INET;
 	dest_address.sin_port = htons(53);
-	dest_address.sin_addr.s_addr = inet_addr("82.130.0.5");
+	dest_address.sin_addr.s_addr = inet_addr("8.8.8.8");
 	/*dest_address.sin_addr.s_addr = inet_addr("208.67.222.222");*/
 /*	printf("sin_port: %u\n", dest_address->sin_port);	*/
 	inet_ntop(AF_INET, &(dest_address.sin_addr), ip_text, INET_ADDRSTRLEN);	
@@ -208,8 +210,8 @@ char* dns_query(char *domain, int query_type, size_t *response_to_client_size){
 		long *p;
 		i=0;
 		int size; 		
-		char response_parsed[NAME_SIZE][INET_ADDRSTRLEN];
-		bzero(response_parsed, NAME_SIZE*INET_ADDRSTRLEN);
+		char response_parsed[NAME_SIZE][MAX_DATA_LENGTH];
+		bzero(response_parsed, NAME_SIZE*MAX_DATA_LENGTH);
 	/*processing answers section*/
 	for (j=0; j<ans_num; j++){	
 		bzero(name_dotted, NAME_SIZE);
@@ -257,8 +259,8 @@ char* dns_query(char *domain, int query_type, size_t *response_to_client_size){
 		pointer = pointer + answer[j].rf->dl;
 	}
 	
-	char unidim_response[(INET_ADDRSTRLEN+1)*ans_num];
-	bzero(unidim_response, (INET_ADDRSTRLEN+1)*ans_num);
+	char unidim_response[MAX_DATA_LENGTH*ans_num];
+	bzero(unidim_response, MAX_DATA_LENGTH*ans_num);
 	int k=0;
 	/*convert 2-d answers section into 1-d answers section*/
 	for (j=0; j<ans_num; j++){
