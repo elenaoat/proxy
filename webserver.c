@@ -1,4 +1,4 @@
-#include "sock_ntop.h"
+#include "headers.h"
 #include <stdio.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -20,100 +20,10 @@
 #include <fcntl.h>
 
 
-struct DNS_header {
-    uint16_t id; /* identification number */
-
-    uint8_t rd :1; /* recursion desired */
-    uint8_t tc:1; /* truncated message*/
-    uint8_t aa :1; /* authoritive answer*/
-    uint8_t opcode :4; /* purpose of message*/
-    uint8_t qr :1; /* query/response flag*/
-
-    uint8_t rcode :4; /* response code*/
-    uint8_t cd :1; /* checking disabled*/
-    uint8_t ad :1; /* authenticated data*/
-    uint8_t z :1; /* its z! reserved*/
-    uint8_t ra :1; /* recursion available*/
-
-
-    uint16_t q_count; /* number of question entries*/
-    uint16_t ans_count; /* number of answer entries*/
-    uint16_t auth_count; /* number of authority entries*/
-    uint16_t add_count; /* number of resource entries*/
-};
-
-
-struct DNS_query {
-    uint16_t type;
-    uint16_t class;
-};
-
-typedef struct {
-    char *name;
-    struct DNS_query *q;
-} QUERY;
-
-
-struct RESPONSE_fields {
-    uint16_t type;
-    uint16_t class;
-    uint32_t ttl;
-    uint16_t dl;
-};
-
-struct RESPONSE{
-    char *name;
-    struct RESPONSE_fields *rf;
-    char *res_data;
-};
-
-
-
-
-
-
-
-/*function that puts together the response that is sent to client*/
-/*returns pointer to the buffer that contains the whole response*/
-char *http_response(int flag, int content_length, char *file_contents, size_t *response_size_total){
-
-	char *status;
-	char content_length_str[10];
-	size_t size_response;
-	char *response = "HTTP/1.1 %s\r\nIam: oate1\r\nContent-Length: %s\r\nContent-Type: text/plain\r\n\r\n";
-	char *r=0, *response1;
-	
-	if (flag == 1)
-		 status = "200 OK";
-	else
-		status = "404 Not Found";
-
-	/*casting the int value of content length to string*/
-	snprintf(content_length_str, 10, "%d", content_length);
-
-	/*calculating size of http headers and concatenating them*/
-	size_response = snprintf(NULL, 0, response, status, content_length_str); 
-	response1 = calloc(size_response + 1, sizeof(char));
-/*	printf("size of headers: %lu\n", size_response);*/
-	snprintf(response1, size_response + 1, response, status, content_length_str);	
-	/*calculating size of headers + content and forming whole HTTP response*/
-	*response_size_total = size_response + content_length + 1;
-	r = calloc(*response_size_total, sizeof(char));
-/*	printf("size of whole response: %lu\n", *response_size_total);*/
-
-	/*putting together headers and binary content*/
-	memcpy(r, response1, size_response);
-	memcpy(r + size_response, file_contents, content_length);	
-	
-	/*freeing occupied memory*/
-	free(response1);
-	return r;
-
-}
-
 /*function that handles the http request from the client*/
 int handle_http(int clisockfd){
 
+	size_t response_to_client_size;
 	int bytes, i;
 	int type = 0, total = 0;
 	long length;
@@ -129,6 +39,7 @@ int handle_http(int clisockfd){
 	char *double_newline = 0;
 	int content_length;
 	char *ptr, *uploadfile_contents;
+	char *response_to_client;
 	size_t uploadfile = 0;
 	int b=0;
 	char home[PATHMAX];
@@ -218,11 +129,14 @@ int handle_http(int clisockfd){
 				ptr2=strstr(req_copy, "&");
 				domain_size = ptr2 - ptr1 - 5;
 				printf("domain size: %lu\n", domain_size);
-				domain = calloc(domain_size, sizeof(char));
+				/*allocate enough bytes for domain name, including null byte*/
+				domain = calloc(domain_size + 1, sizeof(char));
 				for (i=0; i<domain_size; i++){
 					domain[i] = ptr1[i+5];
 				}
+				domain[domain_size] = '\0';
 			}
+
 			
 
 		}
@@ -240,14 +154,6 @@ int handle_http(int clisockfd){
 		printf("This type of request cannot be handled by this server\n");
 		return -1;
 	}
-/*	if (type == 3){*/
-/*		printf("this is dns query\n");*/
-		/*uploadfile_contents is not a string, because it doesn't contain null byte -> cannot be printed*/
-/*		printf("request contents: %s\nrequest contents size: %lu\n", uploadfile_contents, uploadfile);*/
-/*		free(uploadfile_contents);
-		free(filename);
-		return -1;	
-	}*/
 	if (bytes < 0){
 		perror("Error reading from client\n");
 		return -1;
@@ -263,15 +169,12 @@ int handle_http(int clisockfd){
 	}
 	switch(type){
 		case 3:
-			printf("domain: ");
-			for(i=0; i<domain_size; i++){
-				printf("%c", domain[i]);
-			}
-			printf("\n");
-			
+			response_to_client = dns_query(domain, &response_to_client_size);
+			send_response(clisockfd, response_to_client, response_to_client_size);		
 			/*printf("domain: %s\n", domain);*/
 			free(domain);
 			free(uploadfile_contents);
+			free(response_to_client);
 /*			free(filename);*/
 			break;
 		case 1:

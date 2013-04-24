@@ -9,9 +9,13 @@
 #include <errno.h>
 #include <stdlib.h>
 #define BUFSIZE 20000
+#define MAXPATH 1024
 #include <stddef.h>
 
+
 /* DNS client */
+
+
 
 char *query(char *host, size_t domain_length, char *name){
 
@@ -26,9 +30,6 @@ char *query(char *host, size_t domain_length, char *name){
 	return q;
 }
 
-/*function that creates connection to queried server
- * return value: socket descriptor
- * */
 int connecting(char *host, char *service){
 	int sockfd;
 	struct addrinfo hints, *res, *ressave;	
@@ -87,15 +88,15 @@ int main(int argc, char **argv){
 		return 1;
 	}
 	
+
 	sockfd = connecting (argv[1], argv[2]);	
 	
-	/*set timeout for the socket*/
 	setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
-	/*forming query to send to DNS-proxy server*/
+	/*forming query to send to HTTP server*/
 	size_domain = strlen(argv[3]);
 	q = query(argv[1], size_domain, argv[3]);
-
+	
 	if (sockfd < 0){
 		perror("Error creating socket\n");
 		free(q);
@@ -119,22 +120,26 @@ int main(int argc, char **argv){
 
 	bzero(buff, BUFSIZE);
 	bzero(buff_copy, BUFSIZE);
+	/*defining filepath and filename where the fetched data will be stored*/
+/*	printf ("path = %s\n", home);*/
 
 	total = 0;
 	while ((bytes=read(sockfd, buff, BUFSIZE))>0){
 		total += bytes;
-	/*	printf("total= %d\n", total);	*/
+		sleep(5);	
+		/*	printf("total= %d\n", total);	*/
 
 		/*deep copy of buffer, because strtok modifies it*/
 		for (i=0; i<BUFSIZE; i++){
 			buff_copy[i] = buff[i];	
 		}
 		/*checking if response contains 404 code and if the buffer is still processing headers, i.e. \r\n\r\n is not reached yet*/
-		/*if (strstr(buff, "404 Not Found") && double_newline == 0){
-		}*/
+		if (strstr(buff, "404 Not Found") && double_newline == 0){
+			printf("Record for such a domain was not found\n");
+			break;
+		}
 		if (strstr(buff, "200 OK") && double_newline == 0){
 			printf("The request was successful. Returned code: 200\n");
-			printf("Records for requested domain name:\n");
 
 		}
 
@@ -146,11 +151,12 @@ int main(int argc, char **argv){
 			double_newline = strstr(buff, "\r\n\r\n");
 			if (double_newline){
 				headers_length = (double_newline - buff) + 4;
-				printf("%s\n", double_newline + 4);
+				printf("A records for requested domain name:\n");
+				printf("%s", double_newline + 4);
 /*				printf("Headers length= %d\n", headers_length);*/
 			}
 		} else {
-			printf("%s\n", buff);	
+			printf("%s", buff);	
 		}
 
 		/*identifying content length*/
@@ -167,6 +173,8 @@ int main(int argc, char **argv){
 		if (total == (content_length + headers_length)){
 		/*	printf("received:%d\n", total);*/
 		/*	printf("buffer received: %s\n", buff);*/
+			
+
 			break;
 		}
 				
