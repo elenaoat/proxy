@@ -1,0 +1,32 @@
+﻿Overview
+
+Submitted code contains a DNS client that posts queries for name resolution, as well as a DNS proxy server which receives the query from the DNS client, parses it and sends the request to an assigned DNS server for resolution.
+
+DNS client code can be found from dnsclient.c. DNS proxy functionality is achieved using several source files: webserver.c, dnsquery.c, httpresponse.c, sock_ntop.c. 
+
+webserver.c: main file, it contains main functionality, it is an extension of the webserver which was developed for the previous phase. On program completion response is sent to the client with the parsed reply from DNS server in the message body;
+
+dnsquery.c: code that creates a UDP socket, sends and receives data to the assigned DNS server. The function returns already parsed records to the DNS proxy for sending to the respective client;
+
+httpresponse.c: this snippet of code puts together all components of an HTTP response message (headers and message body). Returned value is a pointer to the char string which contains the HTTP response. This char string is ready to be sent by the server as a response to a query;
+
+sock_ntop.c: this snippet of code is taken from the R. Stevens book [1] and is meant to display the IP address of the client which connected. It is used mainly for debugging purposes;
+
+headers.h: header file which contains declarations and function prototypes.  
+
+Overall the achieved functionality is querying a DNS server via DNS proxy. Only the A query type is supported. Thus, a client reads from the command line the domain name to be queried, which is included inside of HTTP request in the message body together with the Type=A.  
+ 
+Key functions and operation logic
+
+Since the current assignment is an extension of the previous one: HTTP server, most of the functions are still present here. I have used the same source file for extending the functionality of the HTTP server. 
+
+Key functions for DNS proxy: 
+
+int handle_http(int clisockfd)
+
+function that receives and parses request from the DNS client. It also calls dns_query function from dnsquery.c module which in turn sends UDP packet request to DNS server and receives a reply from it. dns_query function returns already parsed response  
+
+Bibliography
+
+1. W.R. Stevens, B. Fenner, A.M. Rudoff. Unix Network Programming. The Sockets Networking API. Vol. 1, 3rd Edition.
+
