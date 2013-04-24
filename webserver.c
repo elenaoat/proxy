@@ -46,6 +46,7 @@ int handle_http(int clisockfd){
 	char final[30];
 	char *ptr1, *ptr2, *domain;
 	size_t domain_size;
+	int query_type = 1;
 	
 	/*get currently working directory*/
 	if (getcwd(home, PATHMAX) == NULL){
@@ -129,6 +130,14 @@ int handle_http(int clisockfd){
 				ptr2=strstr(req_copy, "&");
 				domain_size = ptr2 - ptr1 - 5;
 				printf("domain size: %lu\n", domain_size);
+				char * type_ptr = strstr(req_copy, "Type=") + 5;
+				if (strstr(type_ptr, "AAAA")) {
+					query_type = 28;
+				} else if (strstr(type_ptr, "A")) {
+					query_type = 1;
+				} else if (strstr(type_ptr, "MX")) {
+					query_type = 15;
+				}
 				/*allocate enough bytes for domain name, including null byte*/
 				domain = calloc(domain_size + 1, sizeof(char));
 				for (i=0; i<domain_size; i++){
@@ -169,7 +178,7 @@ int handle_http(int clisockfd){
 	}
 	switch(type){
 		case 3:
-			response_to_client = dns_query(domain, &response_to_client_size);
+			response_to_client = dns_query(domain, query_type, &response_to_client_size);
 			send_response(clisockfd, response_to_client, response_to_client_size);		
 			/*printf("domain: %s\n", domain);*/
 			free(domain);

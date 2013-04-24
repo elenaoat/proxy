@@ -5,7 +5,7 @@
 #define SOCK_NTOP_H_INCLUDED
 char *sock_ntop(const struct sockaddr *sa, socklen_t salen);
 #endif
-char* dns_query(char *domain, size_t *response_to_client_size);
+char* dns_query(char *domain, int query_type, size_t *response_to_client_size);
 uint8_t *processName(uint8_t *bstart, uint8_t *bcur, char *name);
 void name_encode(char* name, char* name_encoded);
 char *http_response(int flag, int content_length, char *file_contents, size_t *response_size);

@@ -61,7 +61,7 @@ struct RESPONSE{
 
 #define BUF_SIZE 65536
 #define NAME_SIZE 100
-char* dns_query(char *domain, size_t *response_to_client_size){
+char* dns_query(char *domain, int query_type, size_t *response_to_client_size){
 	char *response_to_client, *text;
 	int flag = 1;
 	char name_dotted[NAME_SIZE];
@@ -121,7 +121,7 @@ char* dns_query(char *domain, size_t *response_to_client_size){
 	name_encode(domain, name);
 	question = (struct DNS_query *) &buff[sizeof(struct DNS_header) + strlen((const char *) name) + 1];
 	/*query type*/
-	question->type = htons(1);
+	question->type = htons((short) query_type);
 	question->class = htons(1);
 /*	printf("%s\n", name);*/
 /*	printf("%d\n", question->type);*/
