@@ -54,8 +54,6 @@ int handle_http(int clisockfd){
 	int content_length;
 	char *ptr, *uploadfile_contents;
 	char *response_to_client;
-	size_t uploadfile = 0;
-	int b=0;
 	char home[PATHMAX];
 	char final[30];
 	char *ptr1, *ptr2, *domain;
@@ -78,7 +76,7 @@ int handle_http(int clisockfd){
 		total += bytes;
 		int is_full = is_full_request(req, total);
 		printf("Received bytes: %d\nIs full: %d\n", bytes, is_full);
-		printf("Whole request:\n%s\n-- End whole request --", req);
+		// printf("Whole request:\n%s\n-- End whole request --\n", req);
 		if (is_full_request(req, total)) {
 			break;
 		}
@@ -104,12 +102,7 @@ int handle_http(int clisockfd){
 		type = 1;
 	
 	}
-	
-	if (type){
-		memcpy(uploadfile_contents + uploadfile + b, req, bytes);
-		b += bytes;
-	/*	uploadfile_contents = uploadfile_contents + bytes;*/
-	}
+
 	/*checking if the request has PUT in its headers or is known to be PUT req */
 	if ((!type) && ((strstr(req, "PUT")) || (strstr(req, "POST /dns-query")))){
 		/*printf("This is a PUT request\n");*/
@@ -136,10 +129,8 @@ int handle_http(int clisockfd){
 				 content_length = strtol(strtok(NULL, "\r\n\r\n"), NULL, 10);
 				 printf("Content-length: %d\n", content_length);
 				 uploadfile_contents = calloc(content_length, sizeof(char));
-				 memcpy(uploadfile_contents, req_copy + headers_size, bytes - headers_size);
+				 memcpy(uploadfile_contents, req_copy + headers_size, total - headers_size);
 /*					 printf("uploadfile_contents:\n%s\n", uploadfile_contents);*/
-				 uploadfile = bytes - headers_size;
-				 
 			}
 		}
 		if ((type==3) && (ptr1=strstr(req_copy, "Name="))){
@@ -169,10 +160,6 @@ int handle_http(int clisockfd){
 
 	if (type == 0){
 		printf("This type of request cannot be handled by this server\n");
-		return -1;
-	}
-	if (bytes < 0){
-		perror("Error reading from client\n");
 		return -1;
 	}
 	

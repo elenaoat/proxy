@@ -141,8 +141,8 @@ char* dns_query(char *domain, int query_type, size_t *response_to_client_size){
 
 		/*ipaddress = "208.67.222.222";*/
 		/*ipaddress = "195.148.124.10";*/
-		/*ipaddress = "8.8.8.8";*/
-		ipaddress = "4.85.23.113";
+		ipaddress = "8.8.8.8";
+		// ipaddress = "4.85.23.113";
 
 		if(sockfd < 0){
 			perror("error creating socket\n");
