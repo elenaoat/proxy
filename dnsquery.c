@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <netdb.h>
+#include <stdint.h>
 
 #define MAX_DATA_LENGTH 1000
 uint8_t *processName(uint8_t *bstart, uint8_t *bcur, char *name);
@@ -159,7 +160,7 @@ char* dns_query(char *domain, int query_type, size_t *response_to_client_size){
 		name_encode(domain, name);
 		question = (struct DNS_query *) &buff[sizeof(struct DNS_header) + strlen((const char *) name) + 1];
 		/*query type*/
-		question->type = htons(1);
+		question->type = htons(query_type);
 		question->class = htons(1);
 		/*	printf("%s\n", name);*/
 		/*	printf("%d\n", question->type);*/
@@ -273,17 +274,28 @@ char* dns_query(char *domain, int query_type, size_t *response_to_client_size){
 
 		struct in_addr * ipv4_addr;
 		struct in6_addr * ipv6_addr;
+		short preference;
+		int pref_len;
 		switch (rf.type) {
 			case 1: // A
 				ipv4_addr = (struct in_addr *) pointer;
 				ret_val = inet_ntop(AF_INET, ipv4_addr, answer[j].res_data , INET_ADDRSTRLEN);
 				break;
-			case 28:
+			case 28: // AAAA
 				ipv6_addr = (struct in6_addr *) pointer;
 				ret_val = inet_ntop(AF_INET6, ipv6_addr, answer[j].res_data , INET6_ADDRSTRLEN);
 				break;
+			case 15: // MX
+				// MX record consists of 2 bytes representing "preference" which are 
+				// followed by DNS-encoded host name
+				preference = ntohs(*(short *) pointer);
+				pref_len = sprintf(answer[j].res_data, "%d ", preference);
+				processName((unsigned char*) buff_rec, pointer + 2, answer[j].res_data + pref_len);
+				// set to non-zero value to prevent error indication
+				ret_val = (const char *) 1;
+				break;
 		}
-		if (ret_val <= 0){
+		if (!ret_val){
 			perror("error converting an IP address\n");
 			flag = 0;
 			/*TODO follow http_response*/

@@ -137,7 +137,7 @@ int handle_http(int clisockfd){
 			/*parse contents of the dns query*/		
 			ptr2=strstr(req_copy, "&");
 			domain_size = ptr2 - ptr1 - 5;
-			printf("domain size: %lu\n", domain_size);
+			printf("domain size: %lu\n", (unsigned long int) domain_size);
 			char * type_ptr = strstr(req_copy, "Type=") + 5;
 			if (strstr(type_ptr, "AAAA")) {
 				query_type = 28;
